@@ -29,8 +29,17 @@ jobs:
     - name: Install Library (Test Installation)
       run: cmake --install ${{github.workspace}}/logger_lib/build --prefix ${{github.workspace}}/install
       
-    - name: Verify Installation
+    - name: Verify Installation (Unix)
+      if: runner.os != 'Windows'
       run: |
         echo "Checking installed files:"
         find ${{github.workspace}}/install -type f | sort
         echo "Library build completed successfully!"
+        
+    - name: Verify Installation (Windows)
+      if: runner.os == 'Windows'
+      run: |
+        echo "Checking installed files:"
+        Get-ChildItem -Path "${{github.workspace}}/install" -Recurse -File | Sort-Object FullName | ForEach-Object { $_.FullName }
+        echo "Library build completed successfully!"
+      shell: pwsh
