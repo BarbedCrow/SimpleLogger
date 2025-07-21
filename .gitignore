@@ -33,8 +33,7 @@ Makefile
 logger_test_project
 
 # IDE files
-.vscode/settings.json
-.vscode/c_cpp_properties.json
+.vscode/
 *.swp
 *.swo
 *~
