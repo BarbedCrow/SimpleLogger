@@ -88,6 +88,21 @@ cmake .. && make
 - CMake 3.15 or later
 - C++17 compatible compiler (GCC 7+, Clang 5+, MSVC 2017+)
 - Standard build tools (make, ninja, etc.)
+- clang-format (optional, for code formatting)
+
+## Development
+
+### Code Formatting
+This project uses clang-format for consistent code styling. To format all source files:
+
+```bash
+./format.sh
+```
+
+The project includes:
+- `.clang-format` - Formatting configuration based on Google style with 4-space indentation
+- `format.sh` - Script to format all C++ files in the project
+- VS Code settings for automatic formatting on save (local only)
 
 ## Contributing
 

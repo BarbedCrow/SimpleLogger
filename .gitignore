@@ -38,6 +38,10 @@ logger_test_project
 *.swo
 *~
 
+# Code formatting (keep local only)
+.clang-format
+format.sh
+
 # OS generated files
 .DS_Store
 .DS_Store?
