@@ -23,6 +23,6 @@ class Logger {
 
   private:
     std::ofstream _output;
-    std::atomic<bool> _isValid;
+    std::atomic<bool> _isValid = false;
 };
 }  // namespace SLog
