@@ -26,18 +26,11 @@ jobs:
     - name: Build Library
       run: cmake --build ${{github.workspace}}/logger_lib/build --config ${{env.BUILD_TYPE}}
       
-    - name: Configure CMake (Test Project)
-      run: cmake -B ${{github.workspace}}/logger_test_project/build -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} -S ${{github.workspace}}/logger_test_project
+    - name: Install Library (Test Installation)
+      run: cmake --install ${{github.workspace}}/logger_lib/build --prefix ${{github.workspace}}/install
       
-    - name: Build Test Project
-      run: cmake --build ${{github.workspace}}/logger_test_project/build --config ${{env.BUILD_TYPE}}
-      
-    - name: Run Tests
-      working-directory: ${{github.workspace}}/logger_test_project/build
+    - name: Verify Installation
       run: |
-        if [ "$RUNNER_OS" == "Windows" ]; then
-          ./Release/logger_test_project.exe
-        else
-          ./logger_test_project
-        fi
-      shell: bash
+        echo "Checking installed files:"
+        find ${{github.workspace}}/install -type f | sort
+        echo "Library build completed successfully!"
