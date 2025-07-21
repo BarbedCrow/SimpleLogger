@@ -1,0 +1,43 @@
+name: CMake Build
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  BUILD_TYPE: Release
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Configure CMake (Library)
+      run: cmake -B ${{github.workspace}}/logger_lib/build -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} -S ${{github.workspace}}/logger_lib
+      
+    - name: Build Library
+      run: cmake --build ${{github.workspace}}/logger_lib/build --config ${{env.BUILD_TYPE}}
+      
+    - name: Configure CMake (Test Project)
+      run: cmake -B ${{github.workspace}}/logger_test_project/build -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} -S ${{github.workspace}}/logger_test_project
+      
+    - name: Build Test Project
+      run: cmake --build ${{github.workspace}}/logger_test_project/build --config ${{env.BUILD_TYPE}}
+      
+    - name: Run Tests
+      working-directory: ${{github.workspace}}/logger_test_project/build
+      run: |
+        if [ "$RUNNER_OS" == "Windows" ]; then
+          ./Release/logger_test_project.exe
+        else
+          ./logger_test_project
+        fi
+      shell: bash

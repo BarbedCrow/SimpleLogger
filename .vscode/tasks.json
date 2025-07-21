@@ -1,0 +1,15 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Build and Run Logger Test Project",
+			"type": "shell",
+			"command": "cd logger_test_project && mkdir -p build && cd build && cmake .. && make && ./logger_test_project",
+			"group": "build",
+			"problemMatcher": [
+				"$gcc"
+			],
+			"isBackground": false
+		}
+	]
+}
