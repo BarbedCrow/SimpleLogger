@@ -1,5 +1,6 @@
 #include "logger.hpp"
 
+#include <iomanip>
 #include <iostream>
 #include <sstream>
 
@@ -41,7 +42,7 @@ std::string getTimestamp() {
 }
 }  // namespace
 
-Logger::Logger(const std::string filePath, bool clearFile) {
+Logger::Logger(const std::string filePath, bool clearFile, LogLevel minLogLevel) : _minLogLevel(minLogLevel) {
     auto flags = std::ios::binary;
     if (!clearFile) {
         flags |= std::ios::app;
@@ -63,10 +64,16 @@ void Logger::log(LogLevel level, const char* message) {
         return;
     }
 
+    if (level < _minLogLevel) {
+        return;
+    }
+
     _output << "[" << getTimestamp() << "] " << "[" << levelToString(level) << "] " << message << '\n';
     if (_output.fail()) {
         std::cerr << "Failed to log a message." << std::endl;
+        return;
     }
+    _output.flush();
 }
 
 void Logger::debug(const char* message) {
@@ -86,5 +93,8 @@ void Logger::error(const char* message) {
 }
 
 void Logger::cleanup() {
+    if (_output.is_open()) {
+        _output.close();
+    }
 }
 }  // namespace SLog

@@ -8,7 +8,7 @@ enum class LogLevel { DEBUG, INFO, WARNING, ERROR };
 
 class Logger {
   public:
-    Logger(const std::string filePath, bool clearFile = true);
+    Logger(const std::string filePath, bool clearFile = true, LogLevel minLogLevel = LogLevel::DEBUG);
     ~Logger();
 
     void log(LogLevel level, const char* message);
@@ -24,5 +24,6 @@ class Logger {
   private:
     std::ofstream _output;
     std::atomic<bool> _isValid = false;
+    LogLevel _minLogLevel = LogLevel::DEBUG;
 };
 }  // namespace SLog
