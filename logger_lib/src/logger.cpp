@@ -1,5 +1,7 @@
 #include "logger.hpp"
 
+#include <chrono>
+#include <ctime>
 #include <iomanip>
 #include <iostream>
 #include <sstream>
@@ -23,7 +25,7 @@ const char* levelToString(LogLevel level) {
 
 std::string getTimestamp() {
     auto now = std::chrono::system_clock::now();
-    auto time_t = std::chrono::system_clock::to_time_t(now);
+    auto time_point = std::chrono::system_clock::to_time_t(now);
     auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()) % 1000;
 
     std::ostringstream oss;
@@ -31,9 +33,9 @@ std::string getTimestamp() {
     // Cross-platform thread-safe time formatting
     std::tm tm_buf{};
 #ifdef _WIN32
-    localtime_s(&tm_buf, &time_t);
+    localtime_s(&tm_buf, &time_point);
 #else
-    localtime_r(&time_t, &tm_buf);
+    localtime_r(&time_point, &tm_buf);
 #endif
 
     oss << std::put_time(&tm_buf, "%Y-%m-%d %H:%M:%S");
@@ -42,7 +44,8 @@ std::string getTimestamp() {
 }
 }  // namespace
 
-Logger::Logger(const std::string filePath, bool clearFile, LogLevel minLogLevel) : _minLogLevel(minLogLevel) {
+Logger::Logger(const std::string filePath, bool clearFile, LogLevel minLogLevel)
+    : _minLogLevel(minLogLevel), _isRunning(true) {
     auto flags = std::ios::binary;
     if (!clearFile) {
         flags |= std::ios::app;
@@ -51,11 +54,25 @@ Logger::Logger(const std::string filePath, bool clearFile, LogLevel minLogLevel)
     _isValid = _output.is_open();
     if (!_isValid) {
         std::cerr << "Failed to open a file " << filePath << std::endl;
+        return;
     }
+
+    _writerThread = std::thread(&Logger::writerThreadUpdate, this);
 }
 
 Logger::~Logger() {
+    _isRunning = false;
+    _shouldWriteCond.notify_one();
+    if (_writerThread.joinable()) {
+        _writerThread.join();
+    }
     cleanup();
+}
+
+std::string formatString(LogLevel level, const char* message) {
+    std::ostringstream oss;
+    oss << "[" << getTimestamp() << "] " << "[" << levelToString(level) << "] " << message << '\n';
+    return oss.str();
 }
 
 void Logger::log(LogLevel level, const char* message) {
@@ -68,12 +85,10 @@ void Logger::log(LogLevel level, const char* message) {
         return;
     }
 
-    _output << "[" << getTimestamp() << "] " << "[" << levelToString(level) << "] " << message << '\n';
-    if (_output.fail()) {
-        std::cerr << "Failed to log a message." << std::endl;
-        return;
-    }
-    _output.flush();
+    auto formattedMessage = formatString(level, message);
+    std::lock_guard<std::mutex> lock(_logMutex);
+    _messageQueue.push(formattedMessage);
+    _shouldWriteCond.notify_one();
 }
 
 void Logger::debug(const char* message) {
@@ -90,6 +105,24 @@ void Logger::warning(const char* message) {
 
 void Logger::error(const char* message) {
     log(LogLevel::ERROR, message);
+}
+
+void Logger::writerThreadUpdate() {
+    while (_isRunning) {
+        std::unique_lock<std::mutex> lock(_logMutex);
+        _shouldWriteCond.wait(lock, [&] { return !_messageQueue.empty() || !_isRunning; });
+
+        while (!_messageQueue.empty()) {
+            auto message = _messageQueue.front();
+            _messageQueue.pop();
+            _output << message;
+            if (_output.fail()) {
+                std::cerr << "Failed to log a message." << std::endl;
+                return;
+            }
+        }
+        _output.flush();
+    }
 }
 
 void Logger::cleanup() {

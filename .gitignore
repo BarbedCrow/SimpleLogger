@@ -42,6 +42,9 @@ logger_test_project
 .clang-format
 format.sh
 
+# IDE and build files
+compile_commands.json
+
 # OS generated files
 .DS_Store
 .DS_Store?
