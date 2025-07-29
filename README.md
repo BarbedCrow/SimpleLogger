@@ -8,12 +8,26 @@ A minimal C++ logging library built with modern CMake practices. Perfect as a st
 ## Features
 
 - 🚀 **Modern C++17** implementation
+- ⚡ **High Performance** - Uses lock-free concurrent queue for async logging
+- 🧵 **Thread-Safe** - Fully thread-safe with background writer thread
 - 📦 **CMake Integration** - Supports find_package, add_subdirectory, and FetchContent
 - 🔧 **Easy Installation** - System-wide installation with proper CMake config files
 - 🌍 **Cross-Platform** - Works on Linux, macOS, and Windows
 - 📚 **Well Documented** - Comprehensive usage examples and API documentation
 
+## Dependencies
+
+- **concurrentqueue** - High-performance lock-free queue by Cameron314 (included as git submodule)
+- **C++17** compatible compiler
+
 ## Quick Start
+
+### Clone with Submodules
+```bash
+git clone --recursive https://github.com/BarbedCrow/SimpleLogger.git
+# Or if already cloned:
+git submodule update --init --recursive
+```
 
 ### Using find_package (Recommended)
 ```bash

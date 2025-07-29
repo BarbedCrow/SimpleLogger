@@ -9,6 +9,8 @@
 #include <string>
 #include <thread>
 
+#include "concurrentqueue.h"
+
 namespace SLog {
 enum class LogLevel { DEBUG, INFO, WARNING, ERROR };
 
@@ -26,6 +28,7 @@ class Logger {
 
   private:
     void cleanup();
+    void DequeueMessages(std::string& message);
     void writerThreadUpdate();
 
   private:
@@ -35,9 +38,11 @@ class Logger {
     std::atomic<bool> _isValid = false;
     std::atomic<bool> _isRunning = false;
 
-    std::queue<std::string> _messageQueue;
-    std::mutex _logMutex;
-    std::condition_variable _shouldWriteCond;
+    moodycamel::ConcurrentQueue<std::string> _messageQueue;
     std::thread _writerThread;
+
+    std::condition_variable _writerCv;
+    std::atomic<bool> _hasNewMessages;
+    std::mutex _writerCvMutex;
 };
 }  // namespace SLog

@@ -62,7 +62,6 @@ Logger::Logger(const std::string filePath, bool clearFile, LogLevel minLogLevel)
 
 Logger::~Logger() {
     _isRunning = false;
-    _shouldWriteCond.notify_one();
     if (_writerThread.joinable()) {
         _writerThread.join();
     }
@@ -85,10 +84,10 @@ void Logger::log(LogLevel level, const char* message) {
         return;
     }
 
-    auto formattedMessage = formatString(level, message);
-    std::lock_guard<std::mutex> lock(_logMutex);
-    _messageQueue.push(formattedMessage);
-    _shouldWriteCond.notify_one();
+    _messageQueue.enqueue(formatString(level, message));
+
+    _hasNewMessages = true;
+    _writerCv.notify_one();
 }
 
 void Logger::debug(const char* message) {
@@ -107,22 +106,41 @@ void Logger::error(const char* message) {
     log(LogLevel::ERROR, message);
 }
 
-void Logger::writerThreadUpdate() {
-    while (_isRunning) {
-        std::unique_lock<std::mutex> lock(_logMutex);
-        _shouldWriteCond.wait(lock, [&] { return !_messageQueue.empty() || !_isRunning; });
+void Logger::DequeueMessages(std::string& message) {
+    while (_messageQueue.try_dequeue(message)) {
+        _output << message;
+        if (_output.fail()) {
+            std::cerr << "Failed to log a message." << std::endl;
+            return;
+        }
+    }
+    _output.flush();
+}
 
-        while (!_messageQueue.empty()) {
-            auto message = _messageQueue.front();
-            _messageQueue.pop();
+void Logger::writerThreadUpdate() {
+    std::string message;
+    while (_isRunning) {
+        bool hasDequeued = false;
+        while (_messageQueue.try_dequeue(message)) {
+            hasDequeued = true;
             _output << message;
             if (_output.fail()) {
                 std::cerr << "Failed to log a message." << std::endl;
                 return;
             }
         }
-        _output.flush();
+
+        if (hasDequeued) {
+            _hasNewMessages = false;
+            _output.flush();
+            continue;
+        }
+
+        std::unique_lock<std::mutex> lock(_writerCvMutex);
+        _writerCv.wait_for(lock, std::chrono::milliseconds(10), [this]() { return !_isRunning || _hasNewMessages; });
     }
+
+    DequeueMessages(message);
 }
 
 void Logger::cleanup() {
