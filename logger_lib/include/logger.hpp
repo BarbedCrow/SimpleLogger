@@ -40,7 +40,6 @@ class Logger {
     moodycamel::ConcurrentQueue<std::string> _messageQueue;
     std::thread _writerThread;
 
-    std::condition_variable _writerCv;
-    std::mutex _writerCvMutex;
+    std::atomic<bool> _hasNewMessages;
 };
 }  // namespace SLog

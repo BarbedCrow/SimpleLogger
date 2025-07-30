@@ -85,8 +85,7 @@ void Logger::log(LogLevel level, const char* message) {
     }
 
     _messageQueue.enqueue(formatString(level, message));
-
-    _writerCv.notify_one();
+    _hasNewMessages.store(true, std::memory_order_release);
 }
 
 void Logger::debug(const char* message) {
@@ -115,29 +114,35 @@ void Logger::writerThreadUpdate() {
     const auto writeInterval = std::chrono::milliseconds(100);
     auto lastWrite = std::chrono::steady_clock::now();
 
+    auto bufferWrite = [&]() {
+        _output.write(buffer.data(), buffer.size());
+        buffer.clear();
+        currMsgThreshold = msgThreshold;
+    };
+
     while (_isRunning) {
-        bool hasDequeued = false;
-        while (_messageQueue.try_dequeue(message)) {
-            hasDequeued = true;
-            buffer += message;
-            if (buffer.size() > bufferThreshold || --currMsgThreshold == 0) {
-                _output.write(buffer.data(), buffer.size());
-                buffer.clear();
-                currMsgThreshold = msgThreshold;
-                lastWrite = std::chrono::steady_clock::now();
+        if (_hasNewMessages.load(std::memory_order_acquire)) {
+            bool hasDequeued = false;
+            while (_messageQueue.try_dequeue(message)) {
+                hasDequeued = true;
+                buffer += message;
+                if (buffer.size() > bufferThreshold || --currMsgThreshold == 0) {
+                    bufferWrite();
+                    lastWrite = std::chrono::steady_clock::now();
+                }
             }
+
+            _hasNewMessages.store(false, std::memory_order_release);
+
+        } else {
+            // std::this_thread::yield();
         }
 
         const auto now = std::chrono::steady_clock::now();
         if (!buffer.empty() && (now - lastWrite) >= writeInterval) {
-            _output.write(buffer.data(), buffer.size());
-            buffer.clear();
-            currMsgThreshold = msgThreshold;
+            bufferWrite();
             lastWrite = now;
         }
-
-        std::unique_lock<std::mutex> lock(_writerCvMutex);
-        _writerCv.wait_for(lock, std::chrono::milliseconds(10), [this]() { return !_isRunning; });
     }
 
     message = "";
@@ -145,7 +150,7 @@ void Logger::writerThreadUpdate() {
         buffer += message;
     }
     if (!buffer.empty()) {
-        _output.write(buffer.data(), buffer.size());
+        bufferWrite();
     }
 
     _output.flush();
