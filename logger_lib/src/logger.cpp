@@ -86,7 +86,6 @@ void Logger::log(LogLevel level, const char* message) {
 
     _messageQueue.enqueue(formatString(level, message));
 
-    _hasNewMessages = true;
     _writerCv.notify_one();
 }
 
@@ -106,45 +105,55 @@ void Logger::error(const char* message) {
     log(LogLevel::ERROR, message);
 }
 
-void Logger::DequeueMessages(std::string& message) {
-    while (_messageQueue.try_dequeue(message)) {
-        _output << message;
-        if (_output.fail()) {
-            std::cerr << "Failed to log a message." << std::endl;
-            return;
-        }
-    }
-    _output.flush();
-}
-
 void Logger::writerThreadUpdate() {
     std::string message;
+    std::string buffer;
+
+    const size_t bufferThreshold = 4096;  // symbols
+    const size_t msgThreshold = 20;       // messages
+    size_t currMsgThreshold = msgThreshold;
+    const auto writeInterval = std::chrono::milliseconds(100);
+    auto lastWrite = std::chrono::steady_clock::now();
+
     while (_isRunning) {
         bool hasDequeued = false;
         while (_messageQueue.try_dequeue(message)) {
             hasDequeued = true;
-            _output << message;
-            if (_output.fail()) {
-                std::cerr << "Failed to log a message." << std::endl;
-                return;
+            buffer += message;
+            if (buffer.size() > bufferThreshold || --currMsgThreshold == 0) {
+                _output.write(buffer.data(), buffer.size());
+                buffer.clear();
+                currMsgThreshold = msgThreshold;
+                lastWrite = std::chrono::steady_clock::now();
             }
         }
 
-        if (hasDequeued) {
-            _hasNewMessages = false;
-            _output.flush();
-            continue;
+        const auto now = std::chrono::steady_clock::now();
+        if (!buffer.empty() && (now - lastWrite) >= writeInterval) {
+            _output.write(buffer.data(), buffer.size());
+            buffer.clear();
+            currMsgThreshold = msgThreshold;
+            lastWrite = now;
         }
 
         std::unique_lock<std::mutex> lock(_writerCvMutex);
-        _writerCv.wait_for(lock, std::chrono::milliseconds(10), [this]() { return !_isRunning || _hasNewMessages; });
+        _writerCv.wait_for(lock, std::chrono::milliseconds(10), [this]() { return !_isRunning; });
     }
 
-    DequeueMessages(message);
+    message = "";
+    while (_messageQueue.try_dequeue(message)) {
+        buffer += message;
+    }
+    if (!buffer.empty()) {
+        _output.write(buffer.data(), buffer.size());
+    }
+
+    _output.flush();
 }
 
 void Logger::cleanup() {
     if (_output.is_open()) {
+        _output.flush();
         _output.close();
     }
 }

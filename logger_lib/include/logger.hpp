@@ -28,7 +28,6 @@ class Logger {
 
   private:
     void cleanup();
-    void DequeueMessages(std::string& message);
     void writerThreadUpdate();
 
   private:
@@ -42,7 +41,6 @@ class Logger {
     std::thread _writerThread;
 
     std::condition_variable _writerCv;
-    std::atomic<bool> _hasNewMessages;
     std::mutex _writerCvMutex;
 };
 }  // namespace SLog
